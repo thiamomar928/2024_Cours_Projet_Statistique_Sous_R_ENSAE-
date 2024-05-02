@@ -1,0 +1,414 @@
+---
+title: "TP3"
+author: "Omar THIAM"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3 #profondeur table des matières
+    toc_float: true #table des matières flottante
+    number_sections: true #les numéros de section
+    code_folding: show #masquer ou démasquer les codes
+    keep_md: true #Garder une copie rmd
+institute: ENSAE Pierre Ndiaye
+subtitle: projet Statistique sous R et Python
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE, 
+  eval = TRUE, 
+  message = FALSE, 
+  warning = FALSE
+)
+```
+
+ Introduction
+Le but principal de ce travail pratique est de recréer fidèlement les graphiques fournis. Pour ce faire, nous débuterons par l'importation des données. Ensuite, nous procéderons à la préparation de ces données en accomplissant les tâches suivantes :
+
+1. Modification du format de la base de données.
+2. Ajout d'une variable dénommée "Western Africa" ainsi qu'une variable "World". Ces variables seront stockées dans deux cadres de données distincts. Par la suite, nous fusionnerons ces cadres pour en former un seul.
+3. Ce processus sera répété pour chaque graphe requis.
+En conclusion, nous réaliserons une représentation graphique en utilisant le cadre de données final.
+
+# Importations des Bibliothèques
+
+```{r}
+library(haven)
+library(tidyverse)
+library(here)
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(janitor)
+library(plotly)
+# library(here)
+# library(labelled)
+# library(gtsummary)
+```
+
+# Importation et inspection de la base
+
+```{r}
+projet_3 <- here::here()
+PGA <- paste0(projet_3,"/population-growth-annual.csv")
+PGA <- read_csv(PGA)
+head(PGA)
+```
+
+
+```{r}
+projet_3 <- here::here()
+GII<- paste0(projet_3,"/gender-inequality-index.csv")
+GII <- read_csv(GII)
+head(GII)
+```
+
+
+```{r}
+projet_3 <- here::here()
+AGGPC <- paste0(projet_3,"/annual-growth-in-gni-per-capita.csv")
+AGGPC <- read_csv(AGGPC)
+head(AGGPC)
+```   
+
+Pour connaitre la dimension des bases3, il est possible d'utilisé les fonctions comme **dim** ou **str**.
+
+```{r nbr_ligne_col}
+dim(PGA) # 13070 observations et 8 variables
+dim(GII) # 4889 observations et 8 variables
+dim(AGGPC) # 5404 observations et 8 variables
+```
+
+<!-- Le nombre d'individus dans la base de données *base_tp2* est de 53, de meme le nombre de variables est de 30. -->
+
+**NB** : la fonction *str* donne les caractéristiques générales de la base (des variables).
+```{r}
+str(PGA)
+str(GII)
+str(AGGPC)
+```
+formater parfaitement les noms de colonnes des data.frame
+
+```{r}
+PGA<- PGA %>%
+  clean_names()
+GII<- GII %>%
+  clean_names()
+AGGPC<- AGGPC %>%
+  clean_names()
+```
+
+Comparons les colonnes pour les 3 bases de données
+```{r}
+compare_df_cols(PGA, GII, AGGPC)
+```
+
+**Tableau qui resume les valeurs manquantes par variable**
+
+Nous calculons d'abord la somme des valeurs manquantes par colonne avec la fonction colSums. Ensuite nous mettons les valeurs trouvées dans la variable nbr_NA.
+
+```{r}
+# Calculer le nombre de valeurs manquantes par colonne (variable)
+nbr_NA_PGA <- colSums(is.na(PGA))
+nbr_NA_PGA
+nbr_NA_GII <- colSums(is.na(GII))
+nbr_NA_GII
+nbr_NA_AGGPC <- colSums(is.na(AGGPC))
+nbr_NA_AGGPC
+```
+
+NA ici veut faire Namibie et non not missing or Not applicable
+
+
+# Income growth and distribution (Gini Index)
+
+## Creation de la base western_africa
+```{r}
+# Selection des pays
+country_western_africa <- c("Benin","Burkina Faso","Cabo Verde","Gambia","Ghana","Guinea","Guinea-Bissau","Mali","Niger","Nigeria","Senegal","Togo","Côte d’Ivoire","Sierra Leone","Mauritania")
+
+# Selection des données et aggregation des données pour avoir les données de west africa
+western_africa_1 <- AGGPC %>%
+  filter(region_name %in% country_western_africa)%>%
+  group_by(end_year)%>%
+  summarise(value=mean(value))
+
+# Création de la variable Region.Name pour west africa
+western_africa_1$region_name="Western Africa"
+
+# Changement des position des colonnes
+western_africa_1 <- western_africa_1 %>%
+  select(region_name,value, end_year)
+```
+
+## Creation de la base pour le Niger
+```{r}
+data_NIG_1 <- AGGPC%>%
+  filter(region_name=="Niger") 
+```
+
+## Aggregation à l'échelle mondiale
+
+```{r}
+# On a aggregé les données pour avoir les données de tout les pays en faisant la somme des values de chaque pays
+
+world <- AGGPC %>%
+  group_by(end_year)%>%
+  summarise(value=mean(value))
+# Creation de la variable Region.Name
+
+world$region_name="World"
+
+# Changement des position des colonnes
+world <- world %>%
+  select(region_name,value, end_year)
+```
+
+## concatenation des trois bases
+```{r}
+base_graphics_1 <- bind_rows(western_africa_1,data_NIG_1,world)
+base_graphics_1 <-base_graphics_1 %>% select("region_name","value","end_year")
+view(base_graphics_1)
+```
+
+## Representation du graphique de Income growth and distribution (Gini Index)
+
+```{r}
+graphics_1 <-ggplot(base_graphics_1) +
+ aes(x = end_year, y = value, colour = region_name) +
+ geom_point(shape = "circle", size = 1.5) + # pour définir les points
+ geom_line() + #Pour ajouter les lignes
+ scale_color_manual(values = c(Niger = "#218ECA", 
+`Western Africa` = "#4A4C4C", World = "#8C868A")) +#les couleurs des courbes
+ scale_x_continuous(breaks = seq(1970, max(base_graphics_1$end_year), by = 10)) +  # Définir le pas entre les années à 10
+ theme_minimal() + #le thème (le fond)
+ theme(legend.position = "top")+ #Position de la legend
+ labs( title = "Figure : Income growth and distribution (Gini Index)", x="",y="")+ #titre
+ guides(color = guide_legend(override.aes = list(linetype = NA), title = "")) + #Pour éliminer les traits qui sont sur la legend 
+ theme(plot.title = element_text(colour = "blue",face = "italic"))#Couleur du titre
+graphics_1
+```
+
+Source : World Bank
+
+
+
+# Annual population growth (%)
+
+## Creation de la base western_africa
+```{r}
+# gender-inequality-index.csv
+
+# Selection des pays
+country_western_africa <- c("Benin","Burkina Faso","Cabo Verde","Gambia","Ghana","Guinea","Guinea-Bissau","Mali","Niger","Nigeria","Senegal","Togo","Côte d’Ivoire","Sierra Leone","Mauritania")
+
+# Selection des données et aggregation des données pour avoir les données de west africa
+western_africa_2 <- PGA %>%
+  filter(region_name %in% country_western_africa)%>%
+  group_by(end_year)%>%
+  summarise(value=mean(value))
+
+# Création de la variable Region.Name pour west africa
+western_africa_2$region_name="Western Africa"
+
+# Changement des position des colonnes
+western_africa_2 <- western_africa_2 %>%
+  select(region_name,value, end_year)
+```
+
+## Creation de la base pour le Niger
+```{r}
+data_NIG_2 <- PGA%>%
+  filter(region_name=="Niger") 
+```
+
+## Aggregation à l'échelle mondiale
+
+```{r}
+# On a aggregé les données pour avoir les données de tout les pays en faisant la somme des values de chaque pays
+
+world <- PGA %>%
+  group_by(end_year)%>%
+  summarise(value=mean(value))
+# Creation de la variable Region.Name
+
+world$region_name="World"
+
+# Changement des position des colonnes
+world <- world %>%
+  select(region_name,value, end_year)
+```
+
+## concatenation des trois bases
+```{r}
+base_graphics_2 <- bind_rows(western_africa_2,data_NIG_2,world)
+base_graphics_2 <-base_graphics_2 %>% select("region_name","value","end_year")
+view(base_graphics_2)
+```
+
+## Representation du graphique de Annual population growth
+
+```{r}
+graphics_2 <-ggplot(base_graphics_2) +
+ aes(x = end_year, y = value, colour = region_name) +
+ geom_point(shape = "circle", size = 1.5) +
+ geom_line() +
+ scale_color_manual(values = c(Niger = "#218ECA", 
+`Western Africa` = "#4A4C4C", World = "#8C868A")) +
+ scale_x_continuous(breaks = seq(1960, max(base_graphics_2$end_year), by = 10)) +  # Définir le pas entre les années à 10
+ scale_y_continuous(limits = c(0, max(base_graphics_2$value) + 1), breaks = seq(0,    max(base_graphics_2$value) + 1, by = 1)) +
+  theme_minimal() +
+ theme(legend.position = "top")+
+ labs( title = "Figure : Annual population growth (%)", x="",y="")+
+ guides(color = guide_legend(override.aes = list(linetype = NA), title = "")) +
+ theme(plot.title = element_text(colour = "blue",face = "italic"))
+graphics_2
+```
+
+Source : World Bank
+
+
+# Gender inequality index
+
+## Creation de la base western_africa
+```{r}
+# gender-inequality-index.csv
+
+# Selection des pays
+country_western_africa <- c("Benin","Burkina Faso","Cabo Verde","Gambia","Ghana","Guinea","Guinea-Bissau","Mali","Niger","Nigeria","Senegal","Togo","Côte d’Ivoire","Sierra Leone","Mauritania")
+
+# Selection des données et aggregation des données pour avoir les données de west africa
+western_africa <- GII %>%
+  filter(region_name %in% country_western_africa)%>%
+  group_by(end_year)%>%
+  summarise(value=mean(value))
+
+# Création de la variable Region.Name pour west africa
+western_africa$region_name="Western Africa"
+
+# Changement des position des colonnes
+western_africa <- western_africa %>%
+  select(region_name,value, end_year)
+```
+
+## Creation de la base pour le Niger
+```{r}
+data_NIG <- GII%>%
+  filter(region_name=="Niger") 
+```
+
+## Aggregation à l'échelle mondiale
+
+```{r}
+# On a aggregé les données pour avoir les données de tout les pays en faisant la somme des values de chaque pays
+
+world <- GII %>%
+  group_by(end_year)%>%
+  summarise(value=mean(value))
+# Creation de la variable Region.Name
+
+world$region_name="World"
+
+# Changement des position des colonnes
+world <- world %>%
+  select(region_name,value, end_year)
+```
+
+## concatenation des trois bases
+```{r}
+base_graphics_3 <- bind_rows(western_africa,data_NIG,world)
+base_graphics_3 <-base_graphics_3 %>% select("region_name","value","end_year")
+view(base_graphics_3)
+```
+
+
+## Representation du graphique de Gender inequality index
+
+```{r}
+create_dynamic_plot <- function(data) {
+  # Préparation du graphique
+  p <- ggplot(data, aes(x = end_year, y = value, colour = region_name)) +
+    geom_point(shape = 21, na.rm = TRUE) +  # Utilisation du shape 21 pour les points, ignorer les valeurs manquantes
+    geom_line(size = 0.5, na.rm = TRUE) +  # Ignorer les valeurs manquantes dans les lignes
+
+    # Définition des couleurs manuelles pour chaque région
+    scale_color_manual(values = c("Niger" = "#218ECA", 
+                                  "Western Africa" = "#4A4C4C", 
+                                  "World" = "#8C868A"),
+                       limits = c("Niger", "Western Africa", "World")) +
+    theme_minimal() +
+    theme(legend.justification = c(0, 1),
+          legend.direction = "horizontal",
+          legend.position = "top",
+          plot.title = element_text(colour = "blue", face = "italic"),
+          panel.grid.major.y = element_line(linetype = "dotted")) +
+
+    # Labels et titres
+    labs(title = "Figure : Gender inequality index", x = "", y = "") +
+    guides(color = guide_legend(override.aes = list(linetype = NA), title = "")) +
+
+    # Configuration de l'axe X
+    scale_x_continuous(breaks = seq(1990, 2020, by = 5),   # Points de rupture tous les 5 ans
+                       labels = seq(1990, 2020, by = 5)) + # Étiquettes pour chaque point de rupture
+
+    # Style du titre
+    theme(plot.title = element_text(colour = "blue", face = "italic")) +
+
+    # Configuration de l'axe Y
+    scale_y_continuous(limits = c(0, max(data$value, na.rm = TRUE) + 0.2), 
+                       breaks = seq(0, max(data$value, na.rm = TRUE) + 0.2, by = 0.2)) +
+
+    # # Limites explicites pour les axes X et Y pour assurer la cohérence
+    # xlim(1990, 2020) +
+    # ylim(0, 0.8) +
+    # annotate("text", x = 2000, y = 0.55, label = "World")
+# Ajout d'annotations pour enrichir visuellement le graphique
+  annotate("label", 
+           x = 2002.36,            
+           y = 0.49,               
+           label = "world:0.4",    
+           fill = "white",         
+           alpha = 0.8,            
+           color = "black",        
+           label.padding = unit(0.2, "lines"),  
+           label.r = unit(0.2, "lines"),
+           label.size = 0.2,
+           label.fill = "grey20",
+           label.color = "white"
+  ) +
+  annotate("polygon", 
+           x = c(2001.45, 2002.47, 2002),
+           y = c(0.40, 0.40, 0.44), 
+           fill = "white",
+           alpha = 0.5, 
+           color = "black"
+  )
+
+# Suite du code pour compléter la création du graphique...
+
+  
+  
+  return(p)
+}
+
+# Utilisation de la fonction avec vos données
+dynamic_plot <- create_dynamic_plot(base_graphics_3)
+print(dynamic_plot)
+
+```
+
+Source : UNDP
+
+
+ CONCLUSION
+
+La présente étude revêt une importance capitale, dans la mesure où elle a facilité l'application concrète des concepts théoriques abordés au cours. Par ailleurs, elle a constitué une occasion précieuse d'élargir notre champ de connaissances, spécialement en ce qui concerne la maîtrise du package ggplot2 pour R, un outil essentiel pour la visualisation avancée de données. Cette intégration de la théorie et de la pratique s'avère cruciale pour le développement de compétences analytiques et techniques robustes, essentielles dans notre parcours académique et professionnel.
+
+
+
+
+
+
+
+
